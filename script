@@ -1,14 +1,15 @@
 import cv2
 import time
 import mediapipe as mp
+import keyboard
 import rtmidi
 from rtmidi.midiconstants import (CONTROL_CHANGE)
 
 midiout = rtmidi.MidiOut()
 midiout.open_port(1)
 TEMPO = 0.2
-
-
+out_min = 60
+out_max = 72
 cap = cv2.VideoCapture(0)
 mpHands = mp.solutions.hands
 hands = mpHands.Hands(static_image_mode=False,
@@ -38,57 +39,42 @@ def send_mod(cc=1, value=1):
     if value > 0.0:
         midiout.send_message(mod1)
 
+
 while True:
     success, img = cap.read()
     img = cv2.flip(img, 1)
     imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
     results = hands.process(imgRGB)
     if results.multi_hand_landmarks:
         h, w, c = img.shape
         for hand_landmarks in results.multi_hand_landmarks:
-            # print(type(hand_landmarks))
             pink_x = hand_landmarks.landmark[mpHands.HandLandmark.PINKY_TIP].x
             pink_y = hand_landmarks.landmark[mpHands.HandLandmark.PINKY_TIP].y
             if pink_x < 0.5:
                 if (round(pink_y * h)) in range(1, 180):
-                    # print("Left Hand, MIDI CC DATA")
                     v1 = convert_range(pink_x, 0.5, 0, 0, 127)
                     send_mod(1, v1)
                 if (round(pink_y * h)) in range(181, 360):
-                    # print("Left Low Mid")
                     v2 = convert_range(pink_x, 0.5, 0, 0, 127)
                     send_mod(2, v2)
                 if (round(pink_y * h)) in range(361, 540):
-                    # print("Left Up Mid")
                     v3 = convert_range(pink_x, 0.5, 0, 0, 127)
                     send_mod(3, v3)
                 if (round(pink_y * h)) in range(541, 720):
-                    # print("Left Top")
                     v4 = convert_range(pink_x, 0.5, 0, 0, 127)
                     send_mod(4, v4)
-            elif pink_x > 0.5:
-                if round(pink_y * h) in range(360, 720):
-                    # print("Right Bottom")
-                    v5 = convert_range(pink_x, 1.0, 0, 0, 127)
-                    send_mod(5, v5)
-                if round(pink_y * h) in range(0, 360):
-                    # print("Right Bottom")
-                    v6 = convert_range(pink_x, 1.0, 0, 0, 127)
-                    send_mod(6, v6)
-
-            else:
-                print("Outside Range")
-                # if round(pink_y * h) in range(0, 360):
-                #     v6 = convert_range(pink_y, 1.0, -1.0, 60, 92)
-                #     send_notes(v6, 1)
+            if pink_x > 0.5:
+                if round(pink_y * h) in range(0, 720):
+                    v6 = convert_range(pink_y, 1, 0, out_min, out_max)
+                    send_notes(v6, 1)
             mpDraw.draw_landmarks(img, hand_landmarks, mpHands.HAND_CONNECTIONS)
+    if keyboard.is_pressed('z'):
+        out_min += 12
+        out_max += 12
+    elif keyboard.is_pressed('x'):
+        out_min -= 12
+        out_max -= 12
 
     fps = 1
-    # cv2.putText(img, str(fps), (10, 70), cv2.FONT_HERSHEY_PLAIN, 2, (255, 134, 255), 5)
-    cv2.line(img, (0, 540), (640, 540), (255, 255, 255), 2)
-    cv2.line(img, (0, 360), (1280, 360), (255, 255, 255), 2)
-    cv2.line(img, (0, 180), (640, 180), (255, 255, 255), 2)
-    cv2.line(img, (640, 0), (640, 720), (255, 255, 255), 2)
     cv2.imshow("Webcam", img)
     cv2.waitKey(fps)
